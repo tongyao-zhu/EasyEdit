@@ -3,7 +3,7 @@
 The upstream package __init__ imports every editor and trainer. An isolated
 private namespace avoids installing unrelated vision/API stacks. Algorithm
 source files are neither copied nor patched; relative imports resolve to the
-same checkout. This entry point is currently validated for FT only.
+same checkout. Method import is separate from real-model acceptance.
 """
 import importlib
 import importlib.util
@@ -12,7 +12,7 @@ import sys
 import types
 
 
-def load_ft():
+def _load_method(method, entry):
     root = Path(__file__).resolve().parents[1] / "easyeditor"
     prefix = "_ouro_easyedit_upstream"
     for suffix, path in [("", root), (".util", root / "util"),
@@ -26,4 +26,12 @@ def load_ft():
             sys.modules[name] = module
         elif sys.modules[name].__path__ != [str(path)]:
             raise RuntimeError("Conflicting EasyEdit checkout already loaded")
-    return importlib.import_module(prefix + ".models.ft.ft_main")
+    return importlib.import_module(prefix + f".models.{method}.{entry}")
+
+
+def load_ft():
+    return _load_method("ft", "ft_main")
+
+
+def load_rome():
+    return _load_method("rome", "rome_main")
