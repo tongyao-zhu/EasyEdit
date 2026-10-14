@@ -1,0 +1,8 @@
+{
+  "evaluation_source": "loop_edit_p1c_v1_3/runner/evaluation.py",
+  "evaluation_sha256": "bcdf609cf6e5ca324ef6db2af3e585b6e5647b82a63e8b436b329e82c9cce55e",
+  "encode_answers_source": "loop_edit_p1c_v1_3/runner/ouro_adapter.py",
+  "encode_answers_function_sha256": "660b1f3d297ee217958ca631ce4c6b70fb8dff6d703d5edd97f128bc0b500aa7",
+  "parser_modified": false,
+  "generation_backend": "native Ouro FP32 full-prefix; same first-newline/EOS policy; batch8; explicit cumulative positions"
+}
