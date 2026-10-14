@@ -11,9 +11,30 @@ set_requires_grad recursively sets requires_grad in module parameters.
 import contextlib
 import copy
 import inspect
+from contextvars import ContextVar
 from collections import OrderedDict
 
 import torch
+
+
+_trace_invocation_filter = ContextVar("easyedit_trace_invocation_filter", default=None)
+
+
+@contextlib.contextmanager
+def use_trace_invocation_filter(predicate):
+    """Scope Trace collection/intervention/stop to selected module invocations.
+
+    The predicate receives (module, layer_name). Skipped calls execute normally:
+    no retention, latent intervention, or StopForward is performed. This never
+    gates a parameter update. The default None preserves ordinary Trace behavior.
+    A Trace captures its policy on construction, so policies cannot change midway
+    through an installed hook. Architecture adapters must validate their predicate.
+    """
+    token = _trace_invocation_filter.set(predicate)
+    try:
+        yield
+    finally:
+        _trace_invocation_filter.reset(token)
 
 
 class Trace(contextlib.AbstractContextManager):
@@ -65,10 +86,17 @@ class Trace(contextlib.AbstractContextManager):
         """
         retainer = self
         self.layer = layer
+        invocation_filter = _trace_invocation_filter.get()
+        self.invocation_filter_active = invocation_filter is not None
+        self.invocations_seen = self.invocations_selected = 0
         if layer is not None:
             module = get_module(module, layer)
 
         def retain_hook(m, inputs, kwargs, output):
+            retainer.invocations_seen += 1
+            if invocation_filter is not None and not invocation_filter(m, self.layer):
+                return output
+            retainer.invocations_selected += 1
             if retain_input:
                 # Try to get input from positional args first
                 if len(inputs) > 0:
@@ -123,7 +151,9 @@ class Trace(contextlib.AbstractContextManager):
 
     def __exit__(self, type, value, traceback):
         self.close()
-        if self.stop and issubclass(type, StopForward):
+        if type is None and self.invocation_filter_active and self.invocations_selected == 0:
+            raise RuntimeError(f"Trace captured no invocation for {self.layer}")
+        if self.stop and type is not None and issubclass(type, StopForward):
             return True
 
     def close(self):
@@ -194,7 +224,11 @@ class TraceDict(OrderedDict, contextlib.AbstractContextManager):
 
     def __exit__(self, type, value, traceback):
         self.close()
-        if self.stop and issubclass(type, StopForward):
+        if type is None:
+            for name, trace in self.items():
+                if trace.invocation_filter_active and trace.invocations_selected == 0:
+                    raise RuntimeError(f"Trace captured no invocation for {name}")
+        if self.stop and type is not None and issubclass(type, StopForward):
             return True
 
     def close(self):
