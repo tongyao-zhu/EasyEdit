@@ -37,4 +37,23 @@ class BindingTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):ls.load_dataset('must-not-download')
         self.assertIs(ls.load_dataset,original)
 
+    def test_k2_requires_its_own_bound_identity(self):
+        self.runtime.identity.update(K=2, occurrence=1)
+        with self.assertRaises(AssertionError):
+            bind_production_moment(self.runtime,self.binding)
+        identity_path=Path(self.binding['identity_file'])
+        identity=json.loads(identity_path.read_text())
+        identity.update(K=2, occurrence=1)
+        identity_path.write_text(json.dumps(identity))
+        self.binding['identity_sha256']=sha(identity_path)
+        self.runtime.identity['corpus_manifest_sha256']=sha(identity_path)
+        result=bind_production_moment(self.runtime,self.binding)
+        self.assertEqual(sha(result),self.binding['cache_sha256'])
+
+    def test_reject_nonterminal_or_noninteger_fit_coordinate(self):
+        for depth,occ in [(2,0),(4,1),(True,0),(2,True)]:
+            self.runtime.identity.update(K=depth,occurrence=occ)
+            with self.assertRaises(AssertionError):
+                bind_production_moment(self.runtime,self.binding)
+
 if __name__=='__main__':unittest.main()

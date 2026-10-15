@@ -19,12 +19,15 @@ def bind_production_moment(runtime, binding):
     assert sha(identity_path)==binding['identity_sha256']
     assert sha(cache)==binding['cache_sha256']
     identity=json.loads(identity_path.read_text())
-    expected={'samples':100000,'tokens':78683546,'K':4,'occurrence':3,'layer':17,
+    depth = runtime.identity['K']
+    occurrence = runtime.identity['occurrence']
+    assert type(depth) is int and depth in (2, 4)
+    assert type(occurrence) is int and occurrence == depth - 1
+    expected={'samples':100000,'tokens':78683546,'K':depth,'occurrence':occurrence,'layer':17,
               'precision':'float32','cache':False,'attention':'native_sdpa_unchanged','TF32':False}
     for k,v in expected.items():assert identity[k]==v,(k,identity[k])
     assert identity['model_manifest_sha256']==runtime.identity['model_manifest_sha256']
     assert runtime.identity['corpus_manifest_sha256']==binding['identity_sha256']
-    assert runtime.identity['K']==4 and runtime.identity['occurrence']==3
     hp=runtime.hparams
     assert hp.mom2_adjustment and hp.layers==[17]
     assert (hp.mom2_dataset,hp.mom2_dtype,hp.mom2_n_samples)==('wikipedia','float32',100000)
